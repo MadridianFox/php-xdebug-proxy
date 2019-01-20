@@ -191,11 +191,20 @@ class DefaultIdeHandler implements IdeHandler, CommandToXdebugParser
 
                 switch ($command) {
                     case 'proxyinit':
-                        $context['key'] = $arguments['-k'];
-                        if (!preg_match('/^[1-9]\d*$/', $arguments['-p'])) {
+                        $data = explode(':', $arguments['-k']);
+                        if (count($data) != 2) {
+                            throw new IdeRegistrationException(
+                                static::REGISTRATION_ERROR_ARGUMENT_FORMAT,
+                                'Key must be like \'key:port\'',
+                                $command
+                            );
+                        }
+                        [$key, $port] = $data;
+                        $context['key'] = $key;
+                        if (!preg_match('/^[1-9]\d*$/', $port)) {
                             $this->logger->error(
                                 '[IdeRegistration] Port should be a number.',
-                                $context + ['port' => $arguments['-p']]
+                                $context + ['port' => $port]
                             );
                             throw new IdeRegistrationException(
                                 static::REGISTRATION_ERROR_ARGUMENT_FORMAT,
@@ -203,7 +212,8 @@ class DefaultIdeHandler implements IdeHandler, CommandToXdebugParser
                                 $command
                             );
                         }
-                        $newIde = "{$ip}:{$arguments['-p']}";
+
+                        $newIde = "{$ip}:{$port}";
                         $context['ide'] = $newIde;
                         if (isset($this->ideList[$arguments['-k']])) {
                             $this->logger->notice(
@@ -216,29 +226,38 @@ class DefaultIdeHandler implements IdeHandler, CommandToXdebugParser
                                 $context
                             );
                         }
-                        $this->ideList[$arguments['-k']] = $newIde;
+                        $this->ideList[$key] = $newIde;
                         $xmlContainer = (new XmlContainer('proxyinit'))
                             ->addAttribute('success', 1)
-                            ->addAttribute('idekey', $arguments['-k'])
+                            ->addAttribute('idekey', $key)
                             ->addAttribute('address', $ip)
-                            ->addAttribute('port', $arguments['-p']);
+                            ->addAttribute('port', $port);
                         break;
                     case 'proxystop':
-                        if (isset($this->ideList[$arguments['-k']])) {
+                        $data = explode(':', $arguments['-k']);
+                        if (count($data) != 2) {
+                            throw new IdeRegistrationException(
+                                static::REGISTRATION_ERROR_ARGUMENT_FORMAT,
+                                'Key must be like \'key:port\'',
+                                $command
+                            );
+                        }
+                        [$key, $port] = $data;
+                        if (isset($this->ideList[$key])) {
                             $this->logger->notice(
-                                "[IdeRegistration] Remove ide key '{$arguments['-k']}' in '{$this->ideList[$arguments['-k']]}'",
+                                "[IdeRegistration] Remove ide key '{$key}' in '{$this->ideList[$key]}'",
                                 $context
                             );
-                            unset($this->ideList[$arguments['-k']]);
+                            unset($this->ideList[$key]);
                         } else {
                             $this->logger->notice(
-                                "[IdeRegistration] Ide key '{$arguments['-k']}' isn't used",
+                                "[IdeRegistration] Ide key '{$key}' isn't used",
                                 $context
                             );
                         }
                         $xmlContainer = (new XmlContainer('proxystop'))
                             ->addAttribute('success', 1)
-                            ->addAttribute('idekey', $arguments['-k']);
+                            ->addAttribute('idekey', $key);
                         break;
                     default:
                         $this->logger->error('[IdeRegistration] Unknown command from IDE.', $context);
