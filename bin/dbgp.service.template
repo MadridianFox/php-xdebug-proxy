@@ -1,0 +1,19 @@
+[Unit]
+Description=Dbgp proxy
+After=network.target
+
+[Service]
+Type=simple
+Restart=always
+PIDFile=#WORKING_DIRECTORY#/dbgp.pid
+WorkingDirectory=#WORKING_DIRECTORY#
+
+User=www-data
+Group=www-data
+
+ExecStart=#WORKING_DIRECTORY#/dbgp-start.sh
+ExecStop=#WORKING_DIRECTORY#/dbgp-stop.sh
+ExecReload=#WORKING_DIRECTORY#/dbgp-restart.sh
+
+[Install]
+WantedBy=multi-user.target
