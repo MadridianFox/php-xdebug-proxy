@@ -1,118 +1,105 @@
-## PHP xdebug (dbgp) proxy
+# Xdebug Proxy #
 
-This is [expandable](#extending) [dbgp](https://xdebug.org/docs-dbgp.php) xdebug proxy based on [amphp](https://amphp.org/).
+Прокси сервер для могопользовательской разработки на dev-сервере, 
+который находится за NAT'ом.
 
-The idea is described in the document [Multi-user debugging in PhpStorm with Xdebug and DBGp proxy](https://confluence.jetbrains.com/display/PhpStorm/Multi-user+debugging+in+PhpStorm+with+Xdebug+and+DBGp+proxy#Multi-userdebugginginPhpStormwithXdebugandDBGpproxy-HowdoesXdebugwork%3F).
+## Принцип работы ##
 
-The main benefit is that this proxy is written in php - the language you know.
+Стандартный DBGp прокси делает одну простую вещь - в зависимости от idekey, который передан при отладке
+передаёт отладочные данные на тот ip с которого этот idekey был зарегистрирован.
 
-[![Latest Stable Version](https://poser.pugx.org/mougrim/php-xdebug-proxy/version)](https://packagist.org/packages/mougrim/php-xdebug-proxy)
-[![Latest Unstable Version](https://poser.pugx.org/mougrim/php-xdebug-proxy/v/unstable)](https://packagist.org/packages/mougrim/php-xdebug-proxy)
-[![License](https://poser.pugx.org/mougrim/php-xdebug-proxy/license)](https://packagist.org/packages/mougrim/php-xdebug-proxy)
-[![Build Status](https://api.travis-ci.org/mougrim/php-xdebug-proxy.png?branch=master)](https://travis-ci.org/mougrim/php-xdebug-proxy)
+Это работает, когда вы можете разместить прокси в одной сети с машинами разработчиков.
 
-### Installation
+**Этот** прокси немного изменён. Он позволяет регистрировать ключи вида `idekey:port`.
+Указанный таким образом порт прокси запомнит, и будет слать отладочные данные на него. Это маленькое изменение
+позволяет разработчикам прокидывать разные порты через ssh на машину с прокси, а прокси сможет 
+посылать им отладочные данные в эти порты.
 
-This package can be installed as a [Composer](https://getcomposer.org/) project:
+## Отладка ##
 
-```bash
-composer.phar create-project mougrim/php-xdebug-proxy
-```
+Чтобы работала отладка, необходимо настроить сервер, настроить машину разработчика и перед отладкой регистрировать свой idekey.
 
-Or dependency:
+### Настройка сервера ###
 
-```bash
-composer.phar require mougrim/php-xdebug-proxy --dev
-```
+Настраиваем php так, чтобы он слал отладочные данные на localhost:9000.  
+Ставим и запускаем DBGp прокси так, чтобы он слушал 9000 порт.  
 
-For parse XML you should install `ext-dom`.
+### Настройка машины разработчика ###
 
-For write logs by default you should install `amphp/log` (use `--dev` if you installed `php-xdebug-proxy` as dependency):
+Настраиваем ssh соединение, чтобы пробрасывались порты. Важно выбрать себе уникальный порт. Например 9010.
+Пример настройки соединения через `~/.ssh/config`:
+   
+   ```
+   Host my-site.dev
+   	HostName 11.22.33.44
+   	Port 22
+   	User developer
+   	LocalForward 9001 127.0.0.1:9001
+   	RemoteForward 9010 127.0.0.1:9010
+   ```
+Здесь порт 9001 проброшен для того чтобы зарегистрировать свой idekey, а на порт 9010 прокси будет слать отладочные данные.
 
-```bash
-composer.phar require amphp/log '^1.0.0'
-```
+Настраиваем IDE, чтобы для отладки слушала выбранный ранее порт.
 
+### Регистрация idekey ###
+ 
+Перед началом отладки регистрируем свой idekey. 
+Для регистрации ипользуем `host = localhost` и `port = 9001`.
+В самом idekey указываем свой порт. Например `idekey = madridianfox:9010`
 
-### Run
+### Отладка ###
 
-You can run next command:
-```bash
-bin/xdebug-proxy
-```
+Как обычно, чтобы запустить отладку надо передать параметр `XDEBUG_SESSION_START=idekey`. **Важно**, idekey тут указывается без порта.
 
-The proxy will be run with default config:
-```text
-Using config path /path/to/php-xdebug-proxy/config
-[2018-06-21 09:31:51] xdebug-proxy.NOTICE: [Proxy][IdeRegistration] Listening for new connections on '127.0.0.1:9001'... array ( ) array ( )
-[2018-06-21 09:31:51] xdebug-proxy.NOTICE: [Proxy][Xdebug] Listening for new connections on '127.0.0.1:9002'... array ( ) array ( )
-```
+## Установка ##
 
-So by default proxy listens '127.0.0.1:9001' for ide registration connections and '127.0.0.1:9002' for xdebug connections.
-
-### Config
-
-If you want to customize a logger, to configure your factory or logger, you can use custom config path. Just copy [`config`](config) directory to your custom path:
-
-```bash
-cp -r /path/to/php-xdebug-proxy/config /your/custom/path
-```
-
-There are 3 files:
-
-- [`config.php`](config/config.php):
-    ```php
-    <?php
-    return [
-        'xdebugServer' => [
-            // xdebug proxy server host:port
-            'listen' => '127.0.0.1:9002',
-        ],
-        'ideServer' => [
-            // if proxy can't find ide, then it uses default ide,
-            // pass empty string if you want to disable default ide
-            // defaultIde is useful when there is only one user for proxy
-            'defaultIde' => '127.0.0.1:9000',
-            // predefined ide list in format 'idekey' => 'host:port',
-            // pass empty array if you don't need predefined ide list
-            // predefinedIdeList is useful when proxy's users aren't changed often,
-            // so they don't need to register in proxy each proxy restart
-            'predefinedIdeList' => [
-                'idekey' => '127.0.0.1:9000',
-            ],
-        ],
-        'ideRegistrationServer' => [
-            // host:port for register ide in proxy
-            // pass empty string if you want to disable ide registration
-            'listen' => '127.0.0.1:9001',
-        ],
-    ];
-    ```
-- [`logger.php`](config/logger.php): you can customize a logger, the file should return an object, which is instance of `\Psr\Log\LoggerInterface`;
-- <a name="factory-php"></a>[`factory.php`](config/factory.php): you can [customize classes](#extending), which are used in proxy, file should return object, which is instanceof [`Factory\Factory`](src/Factory/Factory.php).
-
-Then change configs and run:
+Клонируем репозиторий в любую папку, выполняем install.sh.
 
 ```bash
-bin/xdebug-proxy --configs=/your/custom/path/config
+cd /path/to/proxy
+
+git clone git@github.com:MadridianFox/php-xdebug-proxy.git ./
+
+./install.sh
+
+systemctl enable dbgp
 ```
 
-### Extending
+Управлять прокси можно как обычным systemd сервисом:
+```bash
+systemctl start dbgp # service dbgp start
+systemctl stop dbgp # service dbgp stop
+systemctl restart dbgp # service dbgp restart
+```
 
-As mentioned [above](#factory-php) you can customize classes using your custom factory, which implements [`Factory\Factory`](src/Factory/Factory.php). By default [`Factory\DefaultFactory`](src/Factory/DefaultFactory.php) factory is used.
+## Настройка ##
 
-The most powerful are the request preparers. You can override `Factory\DefaultFactory::createRequestPreparers()`. It  should return an array of objects which implement [`RequestPreparer\RequestPreparer`](src/RequestPreparer/RequestPreparer.php) interface.
+Есть всего 3 момента, которые вы можете поменять:
 
-You can use request preparer for example for changing path to files (in break points and execution files).
+* Пользователя и группу, от имени которых работает прокси
+* Порты, на которых прокси слушает xdebug и регистрацию
+* Предустановленные порты для заранее определённых idekey
 
-Good example of the request preparer is [`RequestPreparer\SoftMocksRequestPreparer`](src/RequestPreparer/SoftMocksRequestPreparer.php). You can see its usage in [`Factory\SoftMocksFactory`](src/Factory/SoftMocksFactory.php).
+### Смена пользователя ###
 
-### Using with soft-mocks
+По умолчанию прокси запускается от пользователя www-data.
 
-See doc in [soft-mocks](https://github.com/badoo/soft-mocks/#using-with-xdebug) project.
+Чтобы это изменить, надо отредактировать файлы
 
-### Thanks
+* ./install.sh
+* ./bin/dbgp.service.template
 
-Many thanks to [Eelf](https://github.com/eelf) for proxy example [smdbgpproxy](https://github.com/eelf/smdbgpproxy).
+Выполняем `install.sh`. Если до этого установка уже была выполнена, то надо перезагрузить
+`systemctl`:
+```bash
+systemctl daemon-reload
+```
 
-Thanks to [Dmitry Ananyev](https://github.com/altexdim) for help with docs.
+### Смена портов и предустановленных idekey ###
+
+По умолчанию прокси слушает xdebug на 9000 порту 
+и регистрацию от пользователей не 9001 порту. Изменить это можно в файле `./config/config.php`.
+
+Кроме того, если состав команды разработки стабилен, то можно заранее задать порты, 
+на которые прокси будет отправлять отладочные данные.
+делается это в том же файле `./config/config.php` в секции `predefinedIdeList`.

@@ -1,8 +1,9 @@
 #!/bin/bash
 PATTERN=s@#WORKING_DIRECTORY#@`pwd`/bin@
 WORKDIR=`pwd`/bin
-
-mkdir /var/log/dbgp
+if [[ ! -d /var/log/dbgp ]]; then
+    mkdir /var/log/dbgp
+fi
 chown www-data:www-data /var/log/dbgp
 chmod 775 /var/log/dbgp
 
