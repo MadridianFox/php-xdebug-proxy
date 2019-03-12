@@ -7,12 +7,12 @@ namespace Mougrim\XdebugProxy;
 
 return [
     'xdebugServer' => [
-        'listen' => '127.0.0.1:9000',
+        'listen' => '127.0.0.1:9002',
     ],
     'ideServer' => [
-        'defaultIde' => '127.0.0.1:9003',
+        'defaultIde' => '127.0.0.1:9000',
         'predefinedIdeList' => [
-            'idekey' => '127.0.0.1:9100',
+            'idekey' => '127.0.0.1:9000',
         ],
     ],
     'ideRegistrationServer' => [
